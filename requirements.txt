@@ -1,7 +1,0 @@
-ffmpeg-python==0.2.0
-future==1.0.0
-markdown-it-py==3.0.0
-mdurl==0.1.2
-pillow==11.0.0
-Pygments==2.18.0
-rich==13.9.4

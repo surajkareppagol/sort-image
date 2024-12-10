@@ -1,10 +1,10 @@
+import argparse
 from argparse import ArgumentParser, Namespace
-from os import mkdir, path
+from os import mkdir, path, listdir
 from random import shuffle
 from shutil import rmtree
 from sys import exit
 
-import ffmpeg
 from PIL import Image
 from PIL.Image import Image as ImageType
 from PIL.ImageFile import ImageFile as ImageFileType
@@ -27,7 +27,9 @@ def sv_create_merge_dir() -> None:
         mkdir("sv")
 
 
-def sv_create_video(directory: str, output: str) -> None:
+def sv_create_video_ffmpeg(directory: str, output: str) -> None:
+    import ffmpeg
+
     glob = f"{directory}/*.jpg"
 
     try:
@@ -38,15 +40,66 @@ def sv_create_video(directory: str, output: str) -> None:
         r_print("[bold red]Error[/bold red]: FFMPEG Failed with error.")
         exit(1)
 
+def sv_create_video_opencv(directory: str, output: str) -> None:
+    import cv2
+    from rich.progress import Progress
+
+    images = sorted([img for img in listdir(
+        directory) if img.endswith(".jpg")])
+
+    try:
+        if not images:
+            r_print("[bold red]Error[/bold red]: No images found in the directory.")
+            return
+
+        frame = cv2.imread(path.join(directory, images[0]))
+        height, width, layers = frame.shape
+
+        video = cv2.VideoWriter(
+            output, cv2.VideoWriter_fourcc(*'mp4v'), 30, (width, height))
+
+        with Progress() as progress:
+            task = progress.add_task("Creating video...", total=len(images))
+            for image in images:
+                img = cv2.imread(path.join(directory, image))
+                video.write(img)
+                progress.advance(task)
+
+        video.release()
+    except Exception:
+        r_print("[bold red]Error[/bold red]: OpenCV Failed with error.")
+        exit(1)
+
 
 def sv_parse_args() -> Namespace:
     parser = ArgumentParser(
         prog="sort-image", description="Visualize sorting algorithms via images."
     )
 
-    parser.add_argument("image")
-    parser.add_argument("-s", "--split")
-    parser.add_argument("-a", "--algorithm")
+    def valid_algorithm(value):
+        try:
+            value = int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                "Invalid input. Algorithm number must be an integer.")
+
+        from sort import SVSort
+
+        valid_algorithms = len(
+            [algo.__name__ for algo in SVSort([]).algorithms])
+
+        if value not in range(valid_algorithms):
+            raise argparse.ArgumentTypeError(
+                f"Invalid algorithm. Choose from {(valid_algorithms)}.")
+        return value
+
+    parser.add_argument("image", type=str, help="Path to the image")
+    parser.add_argument("-s", "--split", type=int,
+                        help="Size of splits (Default is 50)", required=False)
+    parser.add_argument("-a", "--algorithm", type=valid_algorithm,
+                        help="Sorting algorithm to use", required=False)
+    parser.add_argument("-v", "--video-formatter", choices=[
+                        "ffmpeg", "opencv"], required=False, help="Choose video processing tool: ffmpeg or opencv")
 
     args = parser.parse_args()
 

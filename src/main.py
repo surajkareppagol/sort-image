@@ -11,7 +11,6 @@ def main() -> None:
     args = util.sv_parse_args()
 
     directory = "sv"
-    video = "sort-image.mp4"
 
     # Get image
     image = util.sv_parse_image(args.image)
@@ -24,7 +23,10 @@ def main() -> None:
     split = int(args.split) if args.split else 50
 
     # Algorithm
-    algorithm = 0
+    algorithm = int(args.algorithm) if args.algorithm else 0
+
+    # Video Formatter
+    formatter = args.video_formatter
 
     w, h = image.size
     splits = (w // split) * (h // split)
@@ -36,17 +38,24 @@ def main() -> None:
         images = util.sv_split_image(image, split)
 
     with Progress() as progress:
-        task = progress.add_task(f"Generating {splits} images...", total=splits)
+        task = progress.add_task(
+            f"Generating {splits} images...", total=splits)
 
         array = util.sv_generate_array(splits)
-        sort = SVSort(array).sort(algorithm)
+        sorter = SVSort(array)
+        sort = sorter.sort(algorithm)
 
         for index, iteration in enumerate(sort()):
             util.sv_merge_image(image, images, iteration, index, split)
             progress.update(task, advance=1)
 
-    with status("Creating video with ffmpeg...", spinner="dots9"):
-        util.sv_create_video(directory, video)
+    video = [algo.__name__ for algo in sorter.algorithms][algorithm] + ".mp4"
+
+    if formatter == "opencv":
+        util.sv_create_video_opencv(directory, video)
+    else:
+        with status("Creating video with ffmpeg...", spinner="dots9"):
+            util.sv_create_video_ffmpeg(directory, video)
 
     rmtree(directory, ignore_errors=True)
 
